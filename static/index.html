@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sharpen: make your prompt better</title>
+<meta name="description" content="Paste a rough prompt. Sharpen rewrites it, shows every change as a redline, and scores it against eight checks.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232547d0'/%3E%3Cpath d='M8 24 24 8v9l-7 7z' fill='white'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="/" aria-label="Sharpen home">
+    <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="currentColor"/><path d="M8 24 24 8v9l-7 7z" fill="var(--page)"/></svg>
+    <span>Sharpen</span>
+  </a>
+  <div class="bar-actions">
+    <button type="button" class="link" id="recentBtn">Recent</button>
+    <button type="button" class="link" id="themeBtn" aria-label="Switch colour theme">Theme</button>
+  </div>
+</header>
+
+<div class="demo-banner" id="demoBanner" hidden>
+  Demo mode is on: no model is connected, so results are canned. Set an API key to get real rewrites.
+</div>
+
+<main class="desk">
+  <div class="lead">
+    <h1>Make your prompt sharper.</h1>
+    <p>Paste a rough prompt. Sharpen rewrites it, marks every change in blue pencil, and scores it against eight checks.</p>
+  </div>
+
+  <div class="sheet-wrap">
+    <article class="sheet" aria-label="Prompt workspace">
+
+      <section class="compose" aria-labelledby="promptLabel">
+        <label id="promptLabel" for="prompt" class="field-title">Your rough prompt</label>
+        <textarea id="prompt" class="manuscript" rows="4" maxlength="4000" spellcheck="true"
+          placeholder="Write an email about the meeting"></textarea>
+        <div class="compose-foot">
+          <div class="selects">
+            <label class="select"><span>Task</span>
+              <select id="mode">
+                <option value="general">General</option>
+                <option value="writing">Writing</option>
+                <option value="coding">Coding</option>
+                <option value="analysis">Analysis</option>
+                <option value="image">Image generation</option>
+              </select>
+            </label>
+            <label class="select"><span>Optimise for</span>
+              <select id="target">
+                <option value="any">Any assistant</option>
+                <option value="chatgpt">ChatGPT</option>
+                <option value="claude">Claude</option>
+                <option value="gemini">Gemini</option>
+                <option value="local">Small local model</option>
+              </select>
+            </label>
+          </div>
+          <div class="go">
+            <span class="count" id="count">0 / 4000</span>
+            <button type="button" class="btn primary" id="sharpenBtn">Sharpen prompt</button>
+            <button type="button" class="btn" id="cancelBtn" hidden>Cancel</button>
+          </div>
+        </div>
+        <div class="samples" id="samples">
+          <span class="hint">Try one:</span>
+          <button type="button" class="chip" data-mode="writing" data-text="Write a blog post about AI">Blog post</button>
+          <button type="button" class="chip" data-mode="general" data-text="Explain machine learning">Explain ML</button>
+          <button type="button" class="chip" data-mode="coding" data-text="Fix my python script that crashes">Debug code</button>
+          <button type="button" class="chip" data-mode="image" data-text="A cat in a space suit">Image idea</button>
+        </div>
+        <p class="alert" id="error" role="alert" hidden></p>
+      </section>
+
+      <!-- Shown before the first result: teaches the redline -->
+      <section class="sample-redline" id="emptyState" aria-labelledby="exTitle">
+        <h2 id="exTitle" class="field-title">What you get back</h2>
+        <p class="hint-block">Your words stay. Everything Sharpen adds is underlined in blue, and anything it removes is struck through.</p>
+        <p class="manuscript redline" aria-label="Example redline">
+          <ins>You are a project coordinator writing to a team of eight.</ins>
+          Write <del>an</del> <ins>a short, friendly</ins> email about the <ins>Thursday planning</ins> meeting<ins>. Say what was decided, list each owner and due date, and end with one clear next step. Under 150 words. Do not invent decisions that were not given.</ins>
+        </p>
+      </section>
+
+      <section class="result" id="result" hidden aria-labelledby="resultTitle">
+        <div class="result-head">
+          <div>
+            <h2 id="resultTitle" class="result-title">Sharpened prompt</h2>
+            <div class="versions" id="versions" role="group" aria-label="Versions"></div>
+          </div>
+          <div class="result-actions">
+            <button type="button" class="btn" id="copyBtn">Copy prompt</button>
+            <button type="button" class="btn" id="shareBtn">Copy share link</button>
+            <button type="button" class="btn" id="downloadBtn">Download</button>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Result views">
+          <button role="tab" id="tab-prompt" aria-controls="panel-prompt" aria-selected="true" type="button">Prompt</button>
+          <button role="tab" id="tab-redline" aria-controls="panel-redline" aria-selected="false" tabindex="-1" type="button">Redline</button>
+          <button role="tab" id="tab-compare" aria-controls="panel-compare" aria-selected="false" tabindex="-1" type="button">Compare answers</button>
+        </div>
+
+        <div role="tabpanel" id="panel-prompt" aria-labelledby="tab-prompt">
+          <div class="skeleton" id="skeleton" hidden><i></i><i></i><i></i><i></i></div>
+          <p class="manuscript out" id="outText"></p>
+          <details class="blanks" id="blanks" hidden open>
+            <summary id="blanksSummary">Fill in the blanks</summary>
+            <div class="blank-grid" id="blankGrid"></div>
+          </details>
+        </div>
+
+        <div role="tabpanel" id="panel-redline" aria-labelledby="tab-redline" hidden>
+          <ul class="changes" id="changes"></ul>
+          <p class="manuscript redline" id="diffText"></p>
+          <p class="hint-block" id="diffNote" hidden></p>
+        </div>
+
+        <div role="tabpanel" id="panel-compare" aria-labelledby="tab-compare" hidden>
+          <p class="hint-block">Run your original and the sharpened prompt through the model and read both answers. Results vary from run to run.</p>
+          <button type="button" class="btn primary" id="compareBtn">Run both prompts</button>
+          <div class="compare" id="compareOut" hidden>
+            <section><h3>Original prompt</h3><p class="answer" id="ansA"></p></section>
+            <section><h3>Sharpened prompt</h3><p class="answer" id="ansB"></p></section>
+          </div>
+        </div>
+
+        <div class="refine" id="refine" role="group" aria-label="Refine the prompt">
+          <span class="hint">Adjust:</span>
+        </div>
+      </section>
+    </article>
+
+    <aside class="margin" aria-labelledby="marginTitle">
+      <h2 id="marginTitle" class="field-title">Review notes</h2>
+      <div class="score" id="score">
+        <p class="score-line" id="scoreLine">Scored after you sharpen a prompt.</p>
+        <div class="track" id="track" hidden><i class="before"></i><i class="after"></i></div>
+      </div>
+      <ul class="rubric" id="rubric"></ul>
+      <div class="gaps" id="gapsWrap" hidden>
+        <h3>What the rough prompt lacked</h3>
+        <ul id="gaps"></ul>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<footer class="foot">
+  Your prompts are sent to the configured model provider to be rewritten. Recent items stay in this browser only.<span id="modelNote"></span>
+</footer>
+
+<dialog id="recent" aria-labelledby="recentTitle">
+  <div class="dlg-head">
+    <h2 id="recentTitle">Recent prompts</h2>
+    <button type="button" class="link" id="recentClose">Close</button>
+  </div>
+  <ul class="recent-list" id="recentList"></ul>
+  <div class="dlg-foot"><button type="button" class="link danger" id="recentClear">Clear history</button></div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
