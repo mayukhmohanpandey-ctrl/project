@@ -296,3 +296,13 @@ class ProviderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TidyLayoutTests(unittest.TestCase):
+    def test_tags_on_own_lines(self):
+        raw = "<context>Draw a student.</context>\n<task>Pick [STYLE].</task>\n<format>One image.</format>"
+        out = engine.tidy_layout(raw)
+        self.assertEqual(out, "<context>\nDraw a student.\n</context>\n\n<task>\nPick [STYLE].\n</task>\n\n<format>\nOne image.\n</format>")
+
+    def test_plain_text_untouched(self):
+        self.assertEqual(engine.tidy_layout("You are X.\n\nTask: y"), "You are X.\n\nTask: y")
