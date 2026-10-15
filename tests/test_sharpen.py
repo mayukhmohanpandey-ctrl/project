@@ -306,3 +306,9 @@ class TidyLayoutTests(unittest.TestCase):
 
     def test_plain_text_untouched(self):
         self.assertEqual(engine.tidy_layout("You are X.\n\nTask: y"), "You are X.\n\nTask: y")
+
+
+    def test_nested_tags_flattened(self):
+        raw = "<task>\nDo it.\n<output_format>\n- A\n- B\n</output_format>\n\n</task>"
+        self.assertEqual(engine.tidy_layout(raw),
+                         "<task>\nDo it.\n</task>\n\n<output_format>\n- A\n- B\n</output_format>")
