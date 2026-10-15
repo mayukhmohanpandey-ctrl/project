@@ -56,6 +56,8 @@ Rules for the rewrite:
 - Keep the user's intent and language. Do not change what they want.
 - Never invent facts about the user. For missing details they must supply, use square-bracket placeholders in UPPER_CASE, such as [TARGET AUDIENCE] or [WORD COUNT]. Use at most 6.
 - The rewrite must be self-contained and ready to paste into an assistant.
+- Layout: put every XML tag on its own line, put the tag's content on the lines between the opening and closing tags, and leave one blank line between blocks. Use short "- " bullets for lists of requirements. Never run tags and text together on one line.
+- Output format block: describe the deliverable the assistant must return. For text-to-image tasks the deliverable is the image itself, so the prompt must tell the model what to draw and must never ask for a text description of an image. Name the aspect ratio or size as a placeholder if the user gave none.
 
 Score both versions on eight dimensions, each 0 to 3:
 0 = absent, 1 = implied or weak, 2 = present, 3 = precise and complete.
@@ -121,6 +123,31 @@ def clean_text(raw):
     return text[:MAX_TEXT]
 
 
+_TAG = re.compile(r"\s*(</?[a-z][a-z0-9_-]*>)\s*", re.I)
+
+
+def tidy_layout(text):
+    """Put XML-style tags on their own lines with one blank line between blocks."""
+    if not re.search(r"</?[a-z][a-z0-9_-]*>", text, re.I):
+        return text
+    parts = [p for p in _TAG.split(text) if p.strip()]
+    out, depth = [], 0
+    for p in parts:
+        p = p.strip()
+        if re.fullmatch(r"</[^>]+>", p):
+            depth = max(0, depth - 1)
+            out.append(p)
+            out.append("")
+        elif re.fullmatch(r"<[^/>][^>]*>", p):
+            if depth == 0 and out and out[-1] != "":
+                out.append("")
+            out.append(p)
+            depth += 1
+        else:
+            out.append(p)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+
+
 def _level(value):
     try:
         return max(0, min(3, int(round(float(value)))))
@@ -158,7 +185,7 @@ def normalize_sharpen(obj):
     title = title.strip()[:80] if isinstance(title, str) and title.strip() else "Sharpened prompt"
     return {
         "title": title,
-        "sharpened": sharpened.strip()[:MAX_TEXT],
+        "sharpened": tidy_layout(sharpened.strip())[:MAX_TEXT],
         "score": {"before": total_score(before), "after": total_score(after)},
         "rubric": rubric,
         "gaps": _str_list(obj.get("gaps")),
