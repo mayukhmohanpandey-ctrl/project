@@ -244,17 +244,45 @@ function renderVersions() {
   });
 }
 
+// Fill placeholders inside one chunk of text, appending nodes to parent.
+function appendWithBlanks(parent, text) {
+  let last = 0;
+  for (const m of text.matchAll(PLACEHOLDER)) {
+    parent.append(text.slice(last, m.index));
+    const val = (state.fills[m[1]] || '').trim();
+    parent.append(h('span', { class: val ? 'filled' : 'ph', text: val || m[0] }));
+    last = m.index + m[0].length;
+  }
+  parent.append(text.slice(last));
+}
+
+// Split "<tag>body</tag>" blocks into sections. Returns null when the prompt has no tags.
+function parseSections(text) {
+  const re = /<([a-z][a-z0-9_-]*)>\n?([\s\S]*?)\n?<\/\1>/gi;
+  const out = []; let last = 0, m;
+  while ((m = re.exec(text))) {
+    if (text.slice(last, m.index).trim()) out.push({ tag: '', body: text.slice(last, m.index).trim() });
+    out.push({ tag: m[1], body: m[2].trim() });
+    last = m.index + m[0].length;
+  }
+  if (!out.some(x => x.tag)) return null;
+  if (text.slice(last).trim()) out.push({ tag: '', body: text.slice(last).trim() });
+  return out;
+}
+
 function renderOut() {
   const text = current().text;
   el.out.replaceChildren();
-  let last = 0;
-  for (const m of text.matchAll(PLACEHOLDER)) {
-    el.out.append(text.slice(last, m.index));
-    const val = (state.fills[m[1]] || '').trim();
-    el.out.append(h('span', { class: val ? 'filled' : 'ph', text: val || m[0] }));
-    last = m.index + m[0].length;
+  const sections = parseSections(text);
+  if (!sections) { appendWithBlanks(el.out, text); return; }
+  for (const sec of sections) {
+    const box = h('section', { class: 'sec' + (sec.tag ? ' sec-' + sec.tag.toLowerCase().replace(/[^a-z0-9]+/g, '-') : '') });
+    if (sec.tag) box.append(h('h4', { class: 'sec-label', text: sec.tag.replace(/[_-]+/g, ' ') }));
+    const body = h('div', { class: 'sec-body' });
+    appendWithBlanks(body, sec.body);
+    box.append(body);
+    el.out.append(box);
   }
-  el.out.append(text.slice(last));
 }
 
 function renderBlanks() {
