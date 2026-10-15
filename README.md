@@ -2,15 +2,19 @@
 
 **Turn a rough prompt into a precise one, and see exactly what changed.**
 
+[**Live demo**](https://project-otrt.onrender.com) · [Source](https://github.com/mayukhmohanpandey-ctrl/project) · ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+
 Paste a prompt like *"Write an email about the meeting"*. Sharpen rewrites it, marks every edit as a blue-pencil redline, and scores both versions against eight checks, so you learn what makes a prompt work instead of just copying a result.
 
 ![Redline view: additions underlined in blue, removals struck through, review notes in the margin](docs/redline.png)
 
 Works with **Groq** and **xAI Grok** out of the box, plus NVIDIA NIM, OpenAI, Ollama and any OpenAI-compatible endpoint. No framework, no build step, no database.
 
+> **Live demo note:** the demo runs on a free Render instance. After a period of inactivity it spins down, so the first request can take 50 seconds or more. Later requests are fast.
+
 > Inspired by the open-source [Prompt Forge](https://github.com/Divyansh0208/Prompt_Forge). Rebuilt from scratch with a different interface, backend and feature set.
 
-**Contents:** [Quick start](#quick-start) · [Features](#features) · [Choose a model provider](#choose-a-model-provider) · [Configuration](#configuration) · [How scoring works](#how-scoring-works) · [Deploy](#deploy) · [API](#api) · [Security and privacy](#security-and-privacy) · [Troubleshooting](#troubleshooting) · [Development](#development) · [License](#license)
+**Contents:** [Quick start](#quick-start) · [Features](#features) · [Choose a model provider](#choose-a-model-provider) · [Configuration](#configuration) · [How scoring works](#how-scoring-works) · [Prompt layout](#prompt-layout) · [Deploy](#deploy) · [API](#api) · [Security and privacy](#security-and-privacy) · [Troubleshooting](#troubleshooting) · [Development](#development) · [License](#license)
 
 ---
 
@@ -19,7 +23,7 @@ Works with **Groq** and **xAI Grok** out of the box, plus NVIDIA NIM, OpenAI, Ol
 Requires Python 3.10 or newer.
 
 ```bash
-git clone <your-repo-url> sharpen && cd sharpen
+git clone https://github.com/mayukhmohanpandey-ctrl/project.git sharpen && cd sharpen
 python -m venv .venv && source .venv/bin/activate     # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
@@ -51,6 +55,7 @@ Get a key from [console.groq.com/keys](https://console.groq.com/keys) or [consol
 |---|---|
 | **Redline** | Word-level diff of your original against the rewrite. Additions are underlined, removals struck through. Your own words stay plain. |
 | **Review notes** | Eight checks scored 0 to 3 before and after, plus a list of what your prompt lacked and what changed. |
+| **Sectioned prompt** | Tagged prompts (for example Claude's XML style) are shown as one labelled card per block: role, task, requirements, output format. Copy and download keep the plain tagged text. |
 | **Fill in the blanks** | Missing details come back as `[PLACEHOLDERS]`. Fill them in a form and the prompt updates live. Copy and download use your filled values. |
 | **Adjust** | Shorter, more detailed, more formal, friendlier, add examples, simpler. Each adjustment is a new version you can switch back to. |
 | **Compare answers** | Runs your original and the sharpened prompt through the model so you can read both answers side by side. |
@@ -127,9 +132,33 @@ The model grades both versions, so treat the number as a **guide to compare draf
 
 ---
 
+## Prompt layout
+
+Models do not always format their replies well, so Sharpen repairs the layout before showing it (`tidy_layout` in `engine.py`). When a rewrite uses XML-style tags:
+
+- Every tag is a **flat sibling block**: `<role>`, `<task>`, `<requirements>`, `<output_format>` and so on are never nested inside each other.
+- Each tag sits on its own line, its content between the tags, and one blank line separates blocks.
+- Stray or mismatched closing tags are dropped.
+
+```
+<task>
+Research a recent breakthrough from Hugging Face and write a short paper.
+</task>
+
+<output_format>
+Return the paper as plain text with clear headings.
+</output_format>
+```
+
+The model is also told to leave unknown details as `[UPPER_CASE]` placeholders instead of inventing them. For image tasks, the output format describes the image itself, not a text description of it.
+
+---
+
 ## Deploy
 
-**Render, Heroku and similar:** the included `Procfile` runs gunicorn. Set your provider key and `TRUST_PROXY=1` in the platform's environment settings.
+**Live instance:** <https://project-otrt.onrender.com> (Render free tier, spins down when idle).
+
+**Render, Heroku and similar:** the included `Procfile` runs gunicorn. Set your provider key and `TRUST_PROXY=1` in the platform's environment settings. Render redeploys on every push to the connected branch.
 
 **Docker:**
 
@@ -159,7 +188,7 @@ All endpoints return JSON. Errors look like `{"error": "message"}`.
 - Status codes: `400` bad input, `429` rate limited or provider busy, `502`/`504` provider problem, `503` not configured.
 
 ```bash
-curl -s localhost:8000/api/sharpen -H 'Content-Type: application/json' \
+curl -s https://project-otrt.onrender.com/api/sharpen -H 'Content-Type: application/json' \
   -d '{"prompt":"Explain machine learning","mode":"general"}'
 ```
 
@@ -181,6 +210,7 @@ curl -s localhost:8000/api/sharpen -H 'Content-Type: application/json' \
 
 | You see | Cause and fix |
 |---|---|
+| Live demo takes a minute to load | Free Render instances sleep when idle. Wait for the first request to wake it. |
 | "The server has no model API key yet" | No provider key is set. Add `GROQ_API_KEY` or `XAI_API_KEY` to `.env`, or use `DEMO_MODE=1`. |
 | "The model provider rejected the request" | Wrong key, no credits (xAI needs credits on the account), or no access to that model. |
 | "None of the configured models exist on Groq" | Your `LLM_MODEL` and the backups were all retired. Set `LLM_MODEL` to a current id from the provider's model list. |
@@ -188,6 +218,7 @@ curl -s localhost:8000/api/sharpen -H 'Content-Type: application/json' \
 | "Too many requests. Wait a minute" | Sharpen's per-IP limit. Raise `RATE_LIMIT_PER_MIN`. |
 | "The model gave an unusable answer" | The model returned malformed JSON twice. Try again, or switch to a model that follows JSON instructions well. |
 | Every request fails behind a proxy with 429 | Set `TRUST_PROXY=1` so clients are not all seen as one IP. |
+| Deploy fails right after an edit | Check that `app.py` is still Python. Automated "convert to JavaScript" edits break the `Procfile` and `Dockerfile` start command. |
 
 ---
 
@@ -195,7 +226,7 @@ curl -s localhost:8000/api/sharpen -H 'Content-Type: application/json' \
 
 ```
 app.py       Flask routes, validation, rate limiting, cache
-engine.py    Prompts, JSON extraction, validation, scoring, demo engine (pure functions)
+engine.py    Prompts, JSON extraction, layout repair, validation, scoring, demo engine (pure functions)
 llm.py       Provider presets, model fallback, OpenAI-compatible client
 static/      index.html, style.css, app.js (no framework, no build step)
 tests/       Unit and API tests (standard library only)
@@ -206,11 +237,15 @@ docs/        README screenshots
 python -m unittest discover -s tests -v
 ```
 
-The suite covers parsing and scoring, request validation, rate limiting, caching, each provider's request shape, retired-model fallback, and a check that project files are never served. CI runs it on every push (`.github/workflows/ci.yml`).
+The suite covers parsing and scoring, prompt layout repair, request validation, rate limiting, caching, each provider's request shape, retired-model fallback, and a check that project files are never served. CI runs it on every push (`.github/workflows/ci.yml`).
 
 **Ideas for contributors:** streaming output, a template library, Redis-backed limits, an evaluation mode that scores prompts against test cases.
 
 ---
+
+## License
+
+[MIT](LICENSE). Replace `<YOUR NAME>` in the `LICENSE` file with your name.
 
 ## License
 
