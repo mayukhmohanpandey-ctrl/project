@@ -235,3 +235,9 @@ dialog::backdrop { background: rgba(10, 14, 20, .55); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Tagged prompt sections: one card per block */
+.out { display: flex; flex-direction: column; gap: 12px; }
+.sec { border: 1px solid var(--rule); border-left: 3px solid var(--blue); border-radius: 6px; padding: 10px 14px 12px; }
+.sec-label { margin: 0 0 6px; font-family: var(--sans, inherit); font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--blue); }
+.sec-body { white-space: pre-wrap; overflow-wrap: anywhere; }
